@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Space Math Game</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        body {
+            font-family: 'Press Start 2P', sans-serif;
+            background: black;
+            color: white;
+            text-align: center;
+            overflow: hidden;
+            margin: 0;
+        }
+        h1, #question, #score, #lives, #timer {
+            text-shadow: 0 0 5px #4CAF50, 0 0 10px #4CAF50;
+        }
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 80vh;
+            border: 2px solid #4CAF50;
+            overflow: hidden;
+            background: black;
+        }
+        #stars {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(white, transparent),
+                        radial-gradient(white, transparent),
+                        radial-gradient(white, transparent);
+            background-size: 2px 2px, 2px 2px, 2px 2px;
+            background-position: 0 0, 10px 20px, 20px 10px;
+            animation: starsAnimation 5s linear infinite;
+        }
+        @keyframes starsAnimation {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-100%); }
+        }
+        .alien {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: float 3s infinite alternate ease-in-out;
+        }
+        @keyframes float {
+            from { transform: translateY(0); }
+            to { transform: translateY(-15px); }
+        }
+        .alien img {
+            width: 100%;
+            height: auto;
+            image-rendering: pixelated;
+        }
+        .alien span {
+            position: absolute;
+            top: -20%;
+            font-size: 12px;
+            font-weight: bold;
+            color: yellow;
+        }
+        .spaceship {
+            position: absolute;
+            width: 50px;
+            height: auto;
+            bottom: 10px;
+            left: calc(50% - 25px);
+            image-rendering: pixelated;
+        }
+        .projectile {
+            position: absolute;
+            width: 5px;
+            height: 15px;
+            background-color: red;
+            left: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 0 10px red;
+        }
+        #question {
+            font-size: 18px;
+            margin: 20px 0;
+        }
+        #score, #lives, #timer {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Retro Space Math Game!</h1>
+    <div id="question"></div>
+    <div id="gameContainer">
+        <div id="stars"></div>
+        <!-- Player's spaceship -->
+        <img src="image.png" class="spaceship" id="spaceship" alt="Spaceship">
+    </div>
+    <div id="score">Score: 0</div>
+    <div id="lives">Lives: 3</div>
+    <div id="timer">Time Left: 03:00</div>
+
+    <!-- Audio elements for effects -->
+    <audio id="backgroundMusic" src="/mnt/data/A Theme For Space (8bit music).mp3" loop></audio>
+    <audio id="firingSound" src="https://freesound.org/data/previews/66/66717_931655-lq.mp3"></audio>
+    <audio id="collisionSound" src="https://freesound.org/data/previews/243/243701_3875656-lq.mp3"></audio>
+
+    <script>
+        let score = 0;
+        let lives = 3;
+        let highestScore = 0;
+        let timeLeft = 180; // 3 minutes in seconds
+        const gameContainer = document.getElementById('gameContainer');
+        const questionDiv = document.getElementById('question');
+        const scoreDiv = document.getElementById('score');
+        const livesDiv = document.getElementById('lives');
+        const timerDiv = document.getElementById('timer');
+        const spaceship = document.getElementById('spaceship');
+        const firingSound = document.getElementById('firingSound');
+        const collisionSound = document.getElementById('collisionSound');
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        let aliens = [];
+        let correctAnswer;
+        let timerInterval;
+
+        // Start background music
+        backgroundMusic.play();
+
+        function startTimer() {
+            timeLeft = 180; // Reset time to 3 minutes
+            clearInterval(timerInterval); // Clear any previous intervals
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                let minutes = Math.floor(timeLeft / 60);
+                let seconds = timeLeft % 60;
+                timerDiv.textContent = `Time Left: ${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert(`Time's up! Final Score: ${score}`);
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === "ArrowLeft") {
+                moveSpaceship(-20);
+            } else if (event.key === "ArrowRight") {
+                moveSpaceship(20);
+            } else if (event.key === " ") {
+                shootProjectile();
+            }
+        });
+
+        function moveSpaceship(offset) {
+            const currentLeft = parseInt(spaceship.style.left) || 0;
+            const newLeft = Math.max(0, Math.min(gameContainer.clientWidth - 50, currentLeft + offset));
+            spaceship.style.left = newLeft + 'px';
+        }
+
+        function startGame() {
+            generateQuestion();
+            createAliens();
+            startTimer();
+        }
+
+        function generateQuestion() {
+            const num1 = Math.floor(Math.random() * 10) + 1;
+            const num2 = Math.floor(Math.random() * 10) + 1;
+            const operations = ['+', '-', '*'];
+            const operation = operations[Math.floor(Math.random() * operations.length)];
+
+            if (operation === '+') {
+                correctAnswer = num1 + num2;
+            } else if (operation === '-') {
+                // Ensure larger number is on the left for subtraction
+                correctAnswer = Math.max(num1, num2) - Math.min(num1, num2);
+            } else if (operation === '*') {
+                correctAnswer = num1 * num2;
+            }
+
+            questionDiv.textContent = `What is ${Math.max(num1, num2)} ${operation} ${Math.min(num1, num2)}?`;
+        }
+
+        function createAliens() {
+            const answers = [correctAnswer];
+            while (answers.length < 4) {
+                const wrongAnswer = Math.floor(Math.random() * 20);
+                if (!answers.includes(wrongAnswer)) {
+                    answers.push(wrongAnswer);
+                }
+            }
+            answers.sort(() => Math.random() - 0.5); // Shuffle answers
+
+            aliens.forEach(alien => alien.remove());
+            aliens = [];
+
+            answers.forEach((answer) => {
+                const alien = document.createElement('div');
+                alien.className = 'alien';
+                alien.style.left = `${Math.random() * (gameContainer.clientWidth - 60)}px`;
+                alien.style.top = `${Math.random() * (gameContainer.clientHeight - 100)}px`;
+
+                const alienImg = document.createElement('img');
+                alienImg.src = "spaceship.png";
+                alienImg.alt = "Alien";
+
+                const alienNumber = document.createElement('span');
+                alienNumber.textContent = answer;
+                alien.setAttribute('data-answer', answer);
+
+                alien.appendChild(alienNumber);
+                alien.appendChild(alienImg);
+                gameContainer.appendChild(alien);
+                aliens.push(alien);
+            });
+        }
+
+        function shootProjectile() {
+            const projectile = document.createElement('div');
+            projectile.className = 'projectile';
+            projectile.style.left = `${parseInt(spaceship.style.left) + 22.5}px`;
+            projectile.style.bottom = '60px';
+            gameContainer.appendChild(projectile);
+
+            firingSound.currentTime = 0;
+            firingSound.play();
+
+            const interval = setInterval(() => {
+                const currentBottom = parseInt(projectile.style.bottom);
+                if (currentBottom < gameContainer.clientHeight) {
+                    projectile.style.bottom = `${currentBottom + 5}px`;
+                    checkCollision(projectile, interval);
+                } else {
+                    clearInterval(interval);
+                    projectile.remove();
+                }
+            }, 20);
+        }
+
+        function checkCollision(projectile, interval) {
+            aliens.forEach(alien => {
+                const alienRect = alien.getBoundingClientRect();
+                const projectileRect = projectile.getBoundingClientRect();
+
+                if (
+                    projectileRect.left < alienRect.right &&
+                    projectileRect.right > alienRect.left &&
+                    projectileRect.top < alienRect.bottom &&
+                    projectileRect.bottom > alienRect.top
+                ) {
+                    clearInterval(interval);
+                    projectile.remove();
+                    const alienAnswer = parseInt(alien.getAttribute('data-answer'));
+                    if (alienAnswer === correctAnswer) {
+                        score++;
+                        scoreDiv.textContent = `Score: ${score} | Highest: ${highestScore}`;
+                        collisionSound.play();
+                        alert('Correct!');
+                    } else {
+                        lives--;
+                        livesDiv.textContent = `Lives: ${lives}`;
+                        if (lives <= 0) {
+                            clearInterval(timerInterval);
+                            alert(`Game Over! Final Score: ${score}`);
+                            endGame();
+                        } else {
+                            alert('Wrong!');
+                        }
+                    }
+                    generateQuestion();
+                    createAliens();
+                }
+            });
+        }
+
+        function endGame() {
+            if (score > highestScore) {
+                highestScore = score;
+            }
+            score = 0;
+            lives = 3;
+            scoreDiv.textContent = `Score: ${score} | Highest: ${highestScore}`;
+            livesDiv.textContent = `Lives: ${lives}`;
+            startGame();
+        }
+
+        startGame();
+    </script>
+</body>
+</html>
